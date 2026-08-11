@@ -1,272 +1,432 @@
-<p align="center">
-  <strong>AIRE — AI Response Exchange</strong><br>
-  Ultra-compact instructions for token-efficient LLM responses
-</p>
+<div align="center">
 
-<p align="center">
-  <a href="#english-version">English</a> · 
-  <a href="#русская-версия">Русский</a>
-</p>
+# AIRE-2
 
----
+**AI Response Exchange** — compact response format for token-efficient LLM output
 
-<a id="english-version"></a>
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
+[![Format](https://img.shields.io/badge/format-AIRE--2-blue)](#specification)
+[![Model Agnostic](https://img.shields.io/badge/models-GPT%20%7C%20Claude%20%7C%20Gemini%20%7C%20Llama%20%7C%20Qwen%20%7C%20Grok-informational)](#compatibility)
 
-# English Version
+[English](#english) · [Русский](#русский)
 
-**AIRE** provides ready-to-use instructions that can be applied as a **system prompt** or as **custom response instructions** for any modern LLM.  
-The goal is to significantly reduce token usage in both structured outputs and ordinary conversation while remaining understandable by virtually any model.
+</div>
 
 ---
 
-## Instructions (copy & paste)
+<a name="english"></a>
+## English
 
-```text
-RespONLY in AIRE.Nothing else.English only.
-AIRE:2spindnt key:val noquotesunless:|,nl|true/false/null/num
-unifarr name[N]{f1,f2}:row primarr name[N]:v1,v2 nestbyindnt
-omitdefs(status=ok+conf≥.9)
-topkeys(use needed):status:ok|err|partial conf:0-1 answer:main reason:shortopt data:payload
-Casual:answer max short.reason only if valuable.no fluff/polite/markdown.
-ex:status:ok
-answer:40-60% on tabular,low on prose
-NEVER extra text.PureAIRE only.
+### Table of Contents
+
+- [Instruction](#instruction)
+- [Specification](#specification)
+- [Examples](#examples)
+- [Dialogue Mode](#dialogue-mode)
+- [Compatibility](#compatibility)
+- [Use Cases](#use-cases)
+- [Changelog](#changelog)
+- [Limitations](#limitations)
+- [License](#license)
+
+---
+
+### Instruction
+
+Paste as system prompt, custom instructions, or the first message of an AI-to-AI session.
+
+```
+AIRE-2. Output ONLY AIRE-2, no markdown, no greetings, no filler, no restating input, no meta-commentary on the format itself.
+
+SYNTAX
+line=key:value, 2sp indent per nest level, no tabs
+scalar=bare; quote only if it contains : , | or newline, or would otherwise misparse as true/false/null/number
+array(scalar): key[N]:v1,v2,...
+array(object): key[N]{f1,f2,f3}
+  v1,v2,v3
+  (N rows indented below, comma-sep, no labels)
+nested: key:
+  subkey:value
+same indent rule applies at every depth, incl. arrays/objects nested under any key
+
+KEYS (all optional except answer, omit if default/irrelevant)
+status:ok|err|partial(default ok)
+conf:0-1(omit if≥.9)
+answer:required,terse,direct
+reason:only if non-obvious
+data:payload per SYNTAX
+
+DIALOGUE MODE(no structured data): answer: only, terse, no hedging, no pleasantries
+
+EXAMPLES
+answer:yes
+
+status:err
+answer:file not found
+
+answer:use Redis for cache
+reason:fast reads,simple eviction,fits scale
+
+data:
+  users[2]{id,name,active}
+    1,Alice,true
+    2,Bob,false
+
+answer:done
+data:
+  summary:
+    total[3]{region,value}
+      eu,120
+      us,340
+      apac,88
+
+If unsure whether to structure — prefer answer: alone. NEVER text outside AIRE-2.
 ```
 
-Use the block above as a **system prompt** or paste it into custom instructions / response format settings of your model.
+---
+
+### Specification
+
+| Rule | Value |
+|---|---|
+| Indentation | 2 spaces per nesting level, no tabs |
+| Line format | `key:value` |
+| Scalar quoting | Bare by default. Quote only if value contains `:` `,` `\|` `\n`, or collides with `true`/`false`/`null`/numeric |
+| Scalar array | `key[N]:v1,v2,...` |
+| Object array | `key[N]{f1,f2,f3}` header, followed by `N` indented comma-separated rows |
+| Nesting | `key:` on its own line, children indented below; rule is uniform at every depth |
+| Default omission | `status:ok`, `conf` when ≥ `.9` |
+| Output constraints | No markdown, no greetings, no hedging, no text outside format |
+
+#### Keys
+
+| Key | Required | Values | Notes |
+|---|---|---|---|
+| `status` | No | `ok` \| `err` \| `partial` | Default `ok`, omit if default |
+| `conf` | No | `0`–`1` | Omit if ≥ `.9` |
+| `answer` | **Yes** | any | Terse, direct |
+| `reason` | No | any | Only if non-obvious |
+| `data` | No | scalar / array / nested object | Per syntax above |
 
 ---
 
-## What is AIRE?
+### Examples
 
-AIRE is a lightweight response format combined with highly compressed instructions. It reduces token consumption on structured data and everyday dialogue without requiring model-specific features or long explanations.
-
-### Key Advantages
-
-- Token savings on structured data and casual chat
-- Cross-model compatible (GPT, Claude, Gemini, Llama, Qwen, Grok and others)
-- Zero-shot friendly — models understand the format from the compact instruction
-- Hybrid design: clean tabular data **and** short conversational answers
-- Strict anti-fluff rules force concise, high-signal replies
-- English-only for maximum tokenizer efficiency on most models
-- Extremely short instruction block (minimal overhead)
-
----
-
-## Approximate Token Savings
-
-| Task Type                          | Typical Savings | Notes                                      |
-|------------------------------------|-----------------|--------------------------------------------|
-| Uniform tabular / list of objects  | **40–55%**      | Best case. Schema declared once            |
-| Nested structured data             | **25–40%**      | Better than pretty JSON/YAML               |
-| Mixed structured + text            | **30–45%**      | Depends on structured portion ratio        |
-| Casual conversation                | **25–45%**      | Mainly from removing fluff & verbosity     |
-| Pure long-form prose               | **10–25%**      | Limited gain — mostly style enforcement    |
-| Average across mixed workloads     | **30–40%**      | Realistic overall expectation              |
-
-Savings are measured against typical verbose model behavior (polite, well-formatted, explanatory answers). Against already-minimal JSON the gains are lower.
-
----
-
-## Format Overview
-
-**Minimal valid responses:**
-
-```text
+**Minimal:**
+```
 answer:yes
 ```
 
-```text
+**Status + answer:**
+```
+status:err
+answer:file not found
+```
+
+**With reason:**
+```
+answer:use Redis for cache
+reason:fast reads,simple eviction,good enough for this scale
+```
+
+**Object array:**
+```
 status:ok
 answer:Found 3 matches
 data:
-  items[3]{id,name,score}:
+  items[3]{id,name,score}
     12,Alpha,0.91
     7,Beta,0.84
     3,Gamma,0.76
 ```
 
-```text
-answer:use Redis for cache
-reason:fast reads,simple eviction,good enough for this scale
+**Nested array under arbitrary key:**
+```
+answer:done
+data:
+  summary:
+    total[3]{region,value}
+      eu,120
+      us,340
+      apac,88
 ```
 
-### Core Rules
+---
 
-- 2-space indentation
-- `key: value`
-- Uniform arrays of objects use the compact tabular form
-- Omit default fields (`status: ok`, high confidence)
-- No markdown, no polite phrases, no extra text outside the format
-- Prefer English
+### Dialogue Mode
+
+For plain conversational turns with no structured payload, emit `answer:` only:
+
+```
+answer:Redis handles this fine at your scale, no need for a queue yet.
+```
+
+No `status`, no markdown, no hedging language, no restated question.
 
 ---
 
-## When to Use
+### Compatibility
 
-**Good fit**
-- Multi-agent systems
-- High-volume API usage
-- Tool-calling loops
-- Cost-sensitive applications
-- Forcing concise assistant behavior
+Zero-shot comprehension across:
 
-**Less ideal**
-- Creative long-form writing
-- Cases where rich formatting or very natural tone is required
+- GPT (OpenAI)
+- Claude (Anthropic)
+- Gemini (Google)
+- Llama (Meta)
+- Qwen (Alibaba)
+- Grok (xAI)
+
+No model-specific tuning required.
 
 ---
 
-## Limitations
+### Use Cases
 
-- Not a formal standard (inspired by TOON and similar formats)
-- Extreme compression of the instruction can slightly reduce adherence on weaker models
+| Scenario | Fit |
+|---|---|
+| Long-running chat sessions | ✅ |
+| AI-to-AI pipelines / agent handoffs | ✅ |
+| Multi-agent systems, tool-calling loops | ✅ |
+| High-volume / cost-sensitive API usage | ✅ |
+| Creative long-form writing | ❌ |
+| Single-shot queries | ⚠️ Marginal — instruction overhead not amortized |
+| Human-facing rich formatting | ❌ |
+
+---
+
+### Changelog
+
+**v2**
+- Unified array syntax (single grammar, schema header optional)
+- Removed dead token (`nestbyindnt`)
+- Replaced `Casual:` with scoped `DIALOGUE MODE` rule
+- Added nested-array-under-arbitrary-key example
+- Added explicit structured-vs-plain decision rule
+
+**v1**
+- Initial release
+
+---
+
+### Limitations
+
+- Not a formal standard (inspired by TOON and similar compact formats)
+- Adherence may degrade on weaker models under aggressive compression
 - Deeply irregular nested structures benefit less than flat/tabular data
-- Savings depend on how verbose the baseline model behavior is
+- No version-negotiation mechanism between AI-to-AI parties on mismatched versions
 
 ---
 
-## License
+### License
 
 MIT
 
 ---
+---
 
-<br><br>
+<a name="русский"></a>
+## Русский
 
-<p align="center">
-  <strong>AIRE — AI Response Exchange</strong><br>
-  Ультра-компактные инструкции для токен-эффективных ответов LLM
-</p>
+### Оглавление
 
-<p align="center">
-  <a href="#english-version">English</a> · 
-  <a href="#русская-версия">Русский</a>
-</p>
+- [Инструкция](#инструкция)
+- [Спецификация](#спецификация)
+- [Примеры](#примеры)
+- [Режим диалога](#режим-диалога)
+- [Совместимость](#совместимость)
+- [Сценарии использования](#сценарии-использования)
+- [История версий](#история-версий)
+- [Ограничения](#ограничения)
+- [Лицензия](#лицензия)
 
 ---
 
-<a id="русская-версия"></a>
+### Инструкция
 
-# Русская версия
+Вставьте как системный промпт, кастомные инструкции, либо первое сообщение AI-to-AI сессии.
 
-**AIRE** — готовые инструкции, которые можно использовать как **системный промпт** или как **пользовательские / кастомные инструкции для формата ответа** модели.  
-Цель — существенно снизить расход токенов как на структурированных данных, так и в обычном диалоге, оставаясь понятным практически любой современной LLM.
+```
+AIRE-2. Output ONLY AIRE-2, no markdown, no greetings, no filler, no restating input, no meta-commentary on the format itself.
 
----
+SYNTAX
+line=key:value, 2sp indent per nest level, no tabs
+scalar=bare; quote only if it contains : , | or newline, or would otherwise misparse as true/false/null/number
+array(scalar): key[N]:v1,v2,...
+array(object): key[N]{f1,f2,f3}
+  v1,v2,v3
+  (N rows indented below, comma-sep, no labels)
+nested: key:
+  subkey:value
+same indent rule applies at every depth, incl. arrays/objects nested under any key
 
-## Инструкции (скопировать и вставить)
+KEYS (all optional except answer, omit if default/irrelevant)
+status:ok|err|partial(default ok)
+conf:0-1(omit if≥.9)
+answer:required,terse,direct
+reason:only if non-obvious
+data:payload per SYNTAX
 
-```text
-RespONLY in AIRE.Nothing else.English only.
-AIRE:2spindnt key:val noquotesunless:|,nl|true/false/null/num
-unifarr name[N]{f1,f2}:row primarr name[N]:v1,v2 nestbyindnt
-omitdefs(status=ok+conf≥.9)
-topkeys(use needed):status:ok|err|partial conf:0-1 answer:main reason:shortopt data:payload
-Casual:answer max short.reason only if valuable.no fluff/polite/markdown.
-ex:status:ok
-answer:40-60% on tabular,low on prose
-NEVER extra text.PureAIRE only.
+DIALOGUE MODE(no structured data): answer: only, terse, no hedging, no pleasantries
+
+EXAMPLES
+answer:yes
+
+status:err
+answer:file not found
+
+answer:use Redis for cache
+reason:fast reads,simple eviction,fits scale
+
+data:
+  users[2]{id,name,active}
+    1,Alice,true
+    2,Bob,false
+
+answer:done
+data:
+  summary:
+    total[3]{region,value}
+      eu,120
+      us,340
+      apac,88
+
+If unsure whether to structure — prefer answer: alone. NEVER text outside AIRE-2.
 ```
 
-Используйте блок выше как **системный промпт** или вставьте его в пользовательские инструкции / настройки формата ответа вашей модели.
+---
+
+### Спецификация
+
+| Правило | Значение |
+|---|---|
+| Отступ | 2 пробела на уровень вложенности, без табов |
+| Формат строки | `key:value` |
+| Кавычки | По умолчанию без кавычек. Кавычки только если значение содержит `:` `,` `\|` `\n`, либо совпадает с `true`/`false`/`null`/числом |
+| Скалярный массив | `key[N]:v1,v2,...` |
+| Массив объектов | Заголовок `key[N]{f1,f2,f3}`, далее `N` строк с отступом через запятую |
+| Вложенность | `key:` на отдельной строке, дочерние элементы с отступом ниже; правило единое на любой глубине |
+| Пропуск значений по умолчанию | `status:ok`, `conf` при ≥ `.9` |
+| Ограничения вывода | Без markdown, приветствий, оговорок, текста вне формата |
+
+#### Ключи
+
+| Ключ | Обязателен | Значения | Примечание |
+|---|---|---|---|
+| `status` | Нет | `ok` \| `err` \| `partial` | По умолчанию `ok`, пропускать если по умолчанию |
+| `conf` | Нет | `0`–`1` | Пропускать если ≥ `.9` |
+| `answer` | **Да** | любое | Кратко, прямо |
+| `reason` | Нет | любое | Только если неочевидно |
+| `data` | Нет | скаляр / массив / вложенный объект | По синтаксису выше |
 
 ---
 
-## Что такое AIRE?
+### Примеры
 
-AIRE — лёгкий формат ответов в сочетании с сильно сжатыми инструкциями. Снижает расход токенов на структурированных данных и в повседневном диалоге без необходимости в модельно-специфичных возможностях или длинных объяснениях.
-
-### Основные преимущества
-
-- Экономия токенов на структурированных данных и обычной беседе
-- Кросс-модельная совместимость (GPT, Claude, Gemini, Llama, Qwen, Grok и другие)
-- Работает zero-shot — модели понимают формат из компактной инструкции
-- Гибридный дизайн: чистые табличные данные **и** короткие разговорные ответы
-- Жёсткие правила против «воды» заставляют отвечать коротко и по делу
-- Только английский — максимальная эффективность токенизаторов на большинстве моделей
-- Очень короткий блок инструкций (минимальные накладные расходы)
-
----
-
-## Примерная экономия токенов
-
-| Тип задачи                              | Типичная экономия | Комментарий                                      |
-|-----------------------------------------|-------------------|--------------------------------------------------|
-| Однородные таблицы / списки объектов    | **40–55%**        | Лучший случай. Схема объявляется один раз        |
-| Вложенные структурированные данные      | **25–40%**        | Лучше, чем pretty JSON/YAML                      |
-| Смешанные структурированные + текст     | **30–45%**        | Зависит от доли структурированной части          |
-| Обычная беседа                          | **25–45%**        | В основном за счёт удаления воды и многословия   |
-| Чистый длинный текст                    | **10–25%**        | Ограниченный выигрыш — в основном контроль стиля |
-| Среднее по смешанным нагрузкам          | **30–40%**        | Реалистичное общее ожидание                      |
-
-Экономия считается относительно типичного многословного поведения моделей (вежливость, форматирование, развёрнутые объяснения). По сравнению с уже минимальным JSON выигрыш меньше.
-
----
-
-## Обзор формата
-
-**Минимально валидные ответы:**
-
-```text
+**Минимальный:**
+```
 answer:yes
 ```
 
-```text
+**Status + answer:**
+```
+status:err
+answer:file not found
+```
+
+**С reason:**
+```
+answer:use Redis for cache
+reason:fast reads,simple eviction,good enough for this scale
+```
+
+**Массив объектов:**
+```
 status:ok
 answer:Found 3 matches
 data:
-  items[3]{id,name,score}:
+  items[3]{id,name,score}
     12,Alpha,0.91
     7,Beta,0.84
     3,Gamma,0.76
 ```
 
-```text
-answer:use Redis for cache
-reason:fast reads,simple eviction,good enough for this scale
+**Вложенный массив под произвольным ключом:**
+```
+answer:done
+data:
+  summary:
+    total[3]{region,value}
+      eu,120
+      us,340
+      apac,88
 ```
 
-### Основные правила
+---
 
-- Отступ — 2 пробела
-- `key: value`
-- Однородные массивы объектов используют компактную табличную форму
-- Пропускать поля по умолчанию (`status: ok`, высокая уверенность)
-- Без markdown, вежливых фраз и любого текста вне формата
-- Предпочитать английский
+### Режим диалога
+
+Для обычных реплик без структурированных данных — только `answer:`:
+
+```
+answer:Redis handles this fine at your scale, no need for a queue yet.
+```
+
+Без `status`, без markdown, без оговорок, без пересказа вопроса.
 
 ---
 
-## Когда использовать
+### Совместимость
 
-**Хорошо подходит**
-- Мульти-агентные системы
-- Высоконагруженные API
-- Циклы tool-calling
-- Приложения, чувствительные к стоимости
-- Принуждение ассистента к кратким ответам
+Проверено на понимание zero-shot на:
 
-**Менее подходит**
-- Креативный длинный текст
-- Случаи, где нужно богатое форматирование или очень естественный тон
+- GPT (OpenAI)
+- Claude (Anthropic)
+- Gemini (Google)
+- Llama (Meta)
+- Qwen (Alibaba)
+- Grok (xAI)
+
+Модельно-специфичная настройка не требуется.
 
 ---
 
-## Ограничения
+### Сценарии использования
 
-- Не является формальным стандартом (вдохновлён TOON и похожими форматами)
-- Сильное сжатие инструкций может немного снижать соблюдение формата на более слабых моделях
+| Сценарий | Применимость |
+|---|---|
+| Длинные чат-сессии | ✅ |
+| AI-to-AI пайплайны / передача между агентами | ✅ |
+| Мультиагентные системы, tool-calling | ✅ |
+| Высоконагруженные / cost-sensitive API | ✅ |
+| Креативный длинный текст | ❌ |
+| Разовые запросы | ⚠️ Незначительно — оверхед инструкции не амортизируется |
+| Человекочитаемое богатое форматирование | ❌ |
+
+---
+
+### История версий
+
+**v2**
+- Единый синтаксис массива (одна грамматика, заголовок схемы опционален)
+- Удалён мёртвый токен (`nestbyindnt`)
+- `Casual:` заменён на явное правило `DIALOGUE MODE`
+- Добавлен пример вложенного массива под произвольным ключом
+- Добавлено явное правило выбора структурированный/обычный вывод
+
+**v1**
+- Первый релиз
+
+---
+
+### Ограничения
+
+- Не является формальным стандартом (вдохновлён TOON и похожими компактными форматами)
+- На слабых моделях соблюдение формата может снижаться при агрессивном сжатии
 - Глубоко нерегулярные вложенные структуры выигрывают меньше, чем плоские/табличные данные
-- Экономия зависит от того, насколько многословно ведёт себя модель в обычном режиме
+- Нет механизма согласования версий между AI-to-AI сторонами при рассогласовании
 
 ---
 
-## Лицензия
+### Лицензия
 
 MIT
-
-
-<p align="center">
-  <img src="https://visitor-badge.laobi.icu/badge?page_id=728dev.AIRE&left_text=Repo+Views&left_color=555&right_color=0e75b6" alt="Views" />
-</p>
